@@ -8,8 +8,7 @@ require 'csv'
 module EmailScrape
 	GOOGLE_URL = 'https://google.com'
 	EMAIL_REGEX = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}\b/
-	PHONE_REGEX = /\(?[0-9]{3}[\-\)][0-?9]{3}-[0-9]{3}/
-	PHONE_REGEX_1 = /[1-9](\d{2}){4}$/
+	PHONE_REGEX = /^[\+]?[(]?[0-9 ]{3}[)]?[-\s\.]?[0-9 ]{3}[-\s\.]?[0-9 ]{4,6}$/
 	@sites_urls_from_serp = []
 	@sites_to_email_scrape = []
 	@emails = []
@@ -61,6 +60,7 @@ module EmailScrape
 		begin
 			@browser = Watir::Browser.new(:chrome) # :headless_chrome
 			@browser.goto(GOOGLE_URL)
+			sign_agreements
 			@browser.text_field(title: "Szukaj").set "#{@phrase}"
 			@browser.send_keys :enter
 		rescue Watir::Exception::UnknownObjectException => e
@@ -70,12 +70,16 @@ module EmailScrape
 		end
 	end
 
+	def sign_agreements
+		@browser.buttons.last.click if @browser.buttons.last.text == 'Zgadzam się'
+	end
+
 	def parse_search_html
 		@google_search = Nokogiri::HTML.parse(@browser.html)
 	end
 
 	def find_links_from_search
-		@sites_urls_from_serp << @google_search.css("div.r > a").css('a')&.collect { |a| a.attr('href') } rescue "Collecting urls from serp failed"
+		@sites_urls_from_serp << @google_search.css("div > a").css('a')&.collect { |a| a.attr('href') } rescue "Collecting urls from serp failed"
 	end
 
 	def click_next_serp
@@ -127,7 +131,7 @@ module EmailScrape
     		print "#{site} \n"
     		begin
     			@browser.goto(site)
-    			find_emails_in_html
+    			find_emails_phones_in_html
     		rescue => e
     			puts "#{e.message.red} \n"
     		end
@@ -138,19 +142,19 @@ module EmailScrape
     	puts "Found #{emails.count} e-mails! \n".green
   	end
 
-	def find_emails_in_html
+	def find_emails_phones_in_html
 		begin
 			contact_info = @browser.html.scan(EMAIL_REGEX).uniq
 			unless contact_info.empty?
 				contact_info.unshift(@browser.url) unless contact_info.empty?
-				# contact_info << @browser.html.scan(PHONE_REGEX).uniq
-				# contact_info << @browser.html.scan(PHONE_REGEX_1).uniq
+				contact_info << @browser.html.scan(PHONE_REGEX).uniq
 				contact_info.flatten!
 			end
 			@emails << contact_info
 			print "Site scraped! \n".green
 		rescue => e
 			puts "#{e.message.red} \n"
+			export_to_txt(@emails)
 		end
 	end
 
