@@ -9,6 +9,8 @@ module EmailScrape
 	GOOGLE_URL = 'https://google.com'
 	EMAIL_REGEX = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}\b/
 	PHONE_REGEX = /^[\+]?[(]?[0-9 ]{3}[)]?[-\s\.]?[0-9 ]{3}[-\s\.]?[0-9 ]{4,6}$/
+	REJECTED_URL_KEYWORDS = 'google.'
+
 	@sites_urls_from_serp = []
 	@sites_to_email_scrape = []
 	@emails = []
@@ -27,8 +29,8 @@ module EmailScrape
 		end
 
 		begin
-			print "How meny links from every site should be checked for email? (Leave empty for default value: 15): "
-			@site_links_limit = (input = gets.chomp).empty? ? 15 : input.to_i - 1
+			print "How meny links from every site should be checked for email? (Leave empty for default value: 5): "
+			@site_links_limit = (input = gets.chomp).empty? ? 5 : input.to_i - 1
 			raise "You should type number between 1-250" if @site_links_limit < 0 || @site_links_limit > 250
 		rescue => e
 			puts e.message.red
@@ -99,7 +101,7 @@ module EmailScrape
 	end
 
 	def find_first_child_links_on_each_site
-		@sites_urls_from_serp.flatten! && @sites_urls_from_serp.uniq!
+		prepare_urls_for_scraping
 
 		@sites_urls_from_serp.each do |url|
 			begin
@@ -119,6 +121,11 @@ module EmailScrape
 		end
 		@sites_to_email_scrape.flatten! && @sites_to_email_scrape.uniq!
 		print "Found #{@sites_to_email_scrape.count} sites to scrape emails from! \n".green
+	end
+
+	def prepare_urls_for_scraping
+		@sites_urls_from_serp.flatten! && @sites_urls_from_serp.uniq! && @sites_urls_from_serp.compact! &&
+			@sites_urls_from_serp.reject! { |url| url.match?(REJECTED_URL_KEYWORDS) }
 	end
 
 	def url_pattern(url)
